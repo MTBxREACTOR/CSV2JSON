@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSV to JSON Converter</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #e1bee7; /* Updated background color */
+      color: #7b1fa2; /* Updated text color */
+    }
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .key-mapping {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .custom-key-list {
+      display: block;
+      margin: 10px 0;
+      padding: 10px;
+      border: 1px solid #ddd;
+      max-width: 400px;
+      background: #f9f9f9;
+      box-sizing: border-box; /* Ensure padding is included in width */
+    }
+    .custom-key-list ul {
+      list-style-type: none;
+      padding-left: 0;
+      margin: 0; /* Remove default margin */
+    }
+    .custom-key-list li {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 5px;
+      background: #fff;
+      padding: 5px;
+      border: 1px solid #ccc;
+      box-sizing: border-box; /* Ensure padding is included in width */
+    }
+    .custom-key-list input[type="text"] {
+      flex: 1; /* Allow inputs to grow and fill available space */
+      min-width: 0; /* Prevent inputs from overflowing */
+      box-sizing: border-box; /* Ensure padding is included in width */
+    }
+    .custom-key-list button {
+      flex-shrink: 0; /* Prevent button from shrinking */
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+      color: #7b1fa2; /* Updated text color for table headers */
+    }
+    .toggle-button {
+      background-color: #7b1fa2;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+    .toggle-button:hover {
+      background-color: #6a1b9a;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>CSV to JSON Converter</h1>
+  <div class="controls">
+    <input type="file" id="csvFile" accept=".csv" />
+    <div class="key-mapping" id="keyMapping"></div>
+    <button onclick="addCustomKey()">Add Custom Key</button>
+    <button onclick="convertToJSON()">Create JSON</button>
+    <button onclick="downloadJSON()">Download JSON</button> <!-- New Download Button -->
+  </div>
+  <div id="customKeyList" class="custom-key-list"></div>
+
+  <!-- CSV Table Section with Toggle Button -->
+  <button class="toggle-button" onclick="toggleTable()">Minimize CSV Table</button>
+  <div id="csvTableContainer">
+    <table id="csvTable"></table>
+  </div>
+
+  <!-- JSON Output Section with Toggle Button -->
+  <button class="toggle-button" onclick="toggleJSON()">Minimize JSON Output</button>
+  <div id="jsonOutputContainer">
+    <h3>JSON Output:</h3>
+    <pre id="jsonOutput"></pre>
+  </div>
+
+  <script>
+    let keyMapping = {0: 'ex1', 2: 'location', 5: 'lat', 6: 'long', 9: 'acc'};
+    let customKeys = {ex2: '', uid: '', lrsection: '', voice: '', stn1: '', stn2: ''};
+
+    // Toggle CSV Table Visibility
+    function toggleTable() {
+      const tableContainer = document.getElementById('csvTableContainer');
+      const toggleButton = document.querySelector('button[onclick="toggleTable()"]');
+      if (tableContainer.classList.contains('hidden')) {
+        tableContainer.classList.remove('hidden');
+        toggleButton.textContent = 'Minimize CSV Table';
+      } else {
+        tableContainer.classList.add('hidden');
+        toggleButton.textContent = 'Maximize CSV Table';
+      }
+    }
+
+    // Toggle JSON Output Visibility
+    function toggleJSON() {
+      const jsonContainer = document.getElementById('jsonOutputContainer');
+      const toggleButton = document.querySelector('button[onclick="toggleJSON()"]');
+      if (jsonContainer.classList.contains('hidden')) {
+        jsonContainer.classList.remove('hidden');
+        toggleButton.textContent = 'Minimize JSON Output';
+      } else {
+        jsonContainer.classList.add('hidden');
+        toggleButton.textContent = 'Maximize JSON Output';
+      }
+    }
+
+    document.getElementById('csvFile').addEventListener('change', function(event) {
+      parseCSV(event.target.files[0]);
+      updateCustomKeyList(); // Ensure list is visible immediately
+    });
+
+    function parseCSV(file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const rows = e.target.result.split('\n').map(row => row.split(','));
+        displayTable(rows);
+        createKeyInputs(rows[0]);
+      };
+      reader.readAsText(file);
+    }
+
+    function displayTable(rows) {
+      const table = document.getElementById('csvTable');
+      table.innerHTML = '';
+      rows.forEach((row, rowIndex) => {
+        const tr = document.createElement('tr');
+        row.forEach(cell => {
+          const td = document.createElement(rowIndex === 0 ? 'th' : 'td');
+          td.textContent = cell;
+          tr.appendChild(td);
+        });
+        table.appendChild(tr);
+      });
+    }
+
+    function createKeyInputs(headers) {
+      const container = document.getElementById('keyMapping');
+      container.innerHTML = '';
+      headers.forEach((header, index) => {
+        const div = document.createElement('div');
+        div.innerHTML = `<label>${header} (Key for ${String.fromCharCode(65 + index)}):</label>
+          <input type="text" value="${keyMapping[index] || ''}" oninput="setKey(${index}, this.value)">`;
+        container.appendChild(div);
+      });
+    }
+
+    function setKey(index, key) {
+      key ? keyMapping[index] = key : delete keyMapping[index];
+    }
+
+    function addCustomKey() {
+      const key = prompt('Enter key name:');
+      const value = prompt('Enter value:');
+      if (key) {
+        customKeys[key] = value;
+        updateCustomKeyList();
+      }
+    }
+
+    function updateCustomKeyList() {
+      const container = document.getElementById('customKeyList');
+      container.innerHTML = '<h3>Custom Keys</h3><ul>' +
+        Object.entries(customKeys).map(([key, value]) =>
+          `<li><input type="text" value="${key}" onchange="renameKey('${key}', this.value)">
+          <input type="text" value="${value}" onchange="updateValue('${key}', this.value)">
+          <button onclick="deleteCustomKey('${key}')">Delete</button></li>`
+        ).join('') + '</ul>';
+    }
+
+    function renameKey(oldKey, newKey) {
+      if (oldKey !== newKey) {
+        customKeys[newKey] = customKeys[oldKey];
+        delete customKeys[oldKey];
+      }
+      updateCustomKeyList();
+    }
+
+    function updateValue(key, value) {
+      customKeys[key] = value;
+    }
+
+    function deleteCustomKey(key) {
+      delete customKeys[key];
+      updateCustomKeyList();
+    }
+
+    function convertToJSON() {
+      let jsonData = [];
+      document.querySelectorAll('#csvTable tr').forEach((row, rowIndex) => {
+        if (rowIndex === 0) return;
+        let obj = {};
+        row.querySelectorAll('td').forEach((cell, index) => {
+          if (keyMapping[index]) obj[keyMapping[index]] = cell.textContent.trim();
+        });
+        Object.assign(obj, customKeys);
+        jsonData.push(obj);
+      });
+      document.getElementById('jsonOutput').textContent = JSON.stringify(jsonData, null, 2);
+    }
+
+    function downloadJSON() {
+      const jsonOutput = document.getElementById('jsonOutput').textContent;
+      if (!jsonOutput) {
+        alert('No JSON data to download. Please convert CSV to JSON first.');
+        return;
+      }
+      const blob = new Blob([jsonOutput], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'data.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    updateCustomKeyList();
+  </script>
+</body>
+</html>
